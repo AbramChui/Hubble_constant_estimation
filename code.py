@@ -27,10 +27,10 @@ def fit(x, a, mu, s, m, c):
 #function used to calculated the redshift velocity with formula of redshift
 #frequency observed is the input value
 def velocity(freq):
-    c=299792458 #speed of light
-    lam=c/freq #wavelength = speed of light/frequency
+    c_light=299792458 #speed of light
+    lam=c_light/freq #wavelength = speed of light/frequency
     ratio_lam=(lam/(486.1*10**-9)) #ratio between emitted and observed freqency
-    v=((ratio_lam**2-1)/(ratio_lam**2+1))*c #redshift velocity
+    v=((ratio_lam**2-1)/(ratio_lam**2+1))*c_light #redshift velocity
     return v
 
 ###########End functions##########
@@ -44,6 +44,7 @@ df=pd.read_csv(r"C:/Users/abram/OneDrive - Imperial College London/yr1/Yr1 compu
 #and header is skipped 
 v_list=[]
 err_v=[]
+c_light=299792458
 #empty list for velocity observed and error of velocity
 
 for i in range(0, df.shape[1], 2): 
@@ -64,11 +65,11 @@ for i in range(0, df.shape[1], 2):
       y=m*f_list[x]+c 
       #value of max intensity frequency on the linear line 
       #(for finding the amplitude)     
-      #plt.figure() #seperating figures for each observation
+      plt.figure() #seperating figures for each observation
       amp=max_int-y
       #estimation of amplitude of gaussian distribution
       #(max intensity-intensity of same frequency on the linear best fit line)
-      #plt.plot(f_list,int_list, label='data') 
+      plt.plot(f_list,int_list, label='data') 
       #plot of the noisy data
       sd_guess=(max(f_list)-min(f_list))/10 
       #estimation of standard deviation(suggested by chatgpt)
@@ -79,12 +80,15 @@ for i in range(0, df.shape[1], 2):
    #this function used core worksheet3 solution as reference   
       po, po_cov = curve_fit(fit, f_list, int_list, guess) 
       #curve fitting
-      #plt.plot(f_list, fit(f_list, po[0], po[1], po[2], po[3], po[4]),
-               #label='fitting curve')
+      plt.plot(f_list, fit(f_list, po[0], po[1], po[2], po[3], po[4]),
+               label='fitting curve')
       #plot of the fitting curve to check the validity
       plt.xlabel("Frequency(hz)")#labeling x-axis
       plt.ylabel("intensity(A.U.)")#labeling y-axis
       plt.legend()#legend
+      #plt.savefig(f"C:/Users/abram/OneDrive - Imperial College London/yr1/Yr1 computing/project1/spectral_fit_{i//2 + 1:02d}.png",
+            #dpi=300, bbox_inches="tight")
+      plt.close()
 #4.estimating the mean 
       v = velocity(po[1])
       #estimateing velocity 
@@ -92,10 +96,12 @@ for i in range(0, df.shape[1], 2):
       #to the redshift velocity function at the top
       v_list.append(v/1000)
       #storing velocity into a list(1/1000 changes the unit from m/s to km/s)
-      p_err=np.sqrt(po_cov[1,1])/po[1]
-      #estimated percentage error of velocity
-      err_v.append(v * p_err)
-      #storing error of velocity values
+      #estimating error of velocity:
+      sigma_freq = np.sqrt(po_cov[1,1])
+      wavelength_0 = 486.1e-9
+      r = c_light / (po[1] * wavelength_0)
+      sigma_v = abs(-4*c_light*r**2 /(po[1]*(r**2+1)**2)) * sigma_freq
+      err_v.append(sigma_v/1000)
 
 ###B.eliminating unwanted data,
 ###  matching distance to velocity with the same observation number
@@ -129,28 +135,26 @@ for i in range(0,dis_df.shape[0],1):
        v_plot.append(v_list[idx])
        #storing the matched velocity from excel file 
        #to list of velocity for plotting
-       err_vplot=np.append(err_vplot,int(err_v[idx]))
+       err_vplot=np.append(err_vplot,float(err_v[idx]))
        #storing the matched error of velocity into list
-       
 plt.figure()
-plt.scatter(dist,v_plot)
+plt.scatter(dist,v_plot, color='black')
 #distance against velocity
 plt.xlabel('distance(Mpc)')
 plt.ylabel('Redshift(km/s)')
 
-n,k=np.polyfit(dist,v_plot,1)
-#finding the best fit line(gradient and y intersect)
-h,e=np.polyfit(dist,v_plot,1, w=1/err_vplot,cov=True)
-#storing the covariance mattrix
-x2 = np.linspace(75, 250, 1000)
-#generate some x value for plotting  
-y2=n*x2+k#calculate the y-axis value
-err_h= np.sqrt(e[0, 0])
-#find the error of hubble constant(gradient of best fit line)
-plt.plot(x2,y2,color='red',label='fitting line')#plotting best fit line
+dist = np.array(dist, dtype=float)
+v_plot = np.array(v_plot, dtype=float)
+err_vplot = np.array(err_vplot, dtype=float)
+
+h, e = np.polyfit(dist,v_plot,1,w=1/err_vplot,cov=True)
+err_h = np.sqrt(e[0,0])
+#find the error of hubble constant and the gradient of best fit line
+plt.plot(dist,h[0]*dist + h[1],color='red',linewidth=2,label='Weighted fitting line')
+#plotting best fit line
 plt.legend()#legend
 plt.show()
-print(f'Estimate of Hubble"s constant: {n:.2f} +/- {err_h:.2f} km/s/Mpc')  
+print(f'Estimate of Hubble"s constant: {h[0]:.2f} +/- {err_h:.2f} km/s/Mpc')  
 #stating the final result 
 
 #########################End Main##########################
